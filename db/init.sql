@@ -8,3 +8,13 @@ CREATE TABLE IF NOT EXISTS api_keys (
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Seed da chave de API padrao utilizada pelo evaluation-service
+-- Chave em texto plano: tm_key_f54b81bc161a5b84c277ed954384ae950c87adb8c795892db4abfaef75aaacab
+INSERT INTO api_keys (name, key_hash, is_active)
+VALUES (
+    'Evaluation Service Default Key',
+    '8cfe60ccf86afc21b71ebb7c1550c3fcfa0e796379c4da95007b9aa41ea2b86c',
+    true
+)
+ON CONFLICT (key_hash) DO NOTHING;
