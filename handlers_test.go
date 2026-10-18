@@ -38,7 +38,7 @@ func TestMasterKeyAuthMiddleware(t *testing.T) {
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("authorized"))
+		_, _ = w.Write([]byte("authorized"))
 	})
 
 	protectedHandler := app.masterKeyAuthMiddleware(nextHandler)
