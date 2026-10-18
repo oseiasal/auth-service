@@ -44,13 +44,17 @@ func main() {
 	defer db.Close()
 
 	app := &App{
-		DB:         db,
-		MasterKey:  masterKey,
+		DB:        db,
+		MasterKey: masterKey,
 	}
+
+	telemetry := InitTelemetry("auth-service")
 
 	// --- Rotas da API ---
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", app.healthHandler)
+	mux.HandleFunc("/metrics", telemetry.MetricsHandler)
+	mux.HandleFunc("/chaos/fail", telemetry.ChaosHandler)
 
 	// Endpoint público para validar uma chave
 	mux.HandleFunc("/validate", app.validateKeyHandler)
@@ -60,7 +64,7 @@ func main() {
 	mux.Handle("/admin/keys", app.masterKeyAuthMiddleware(http.HandlerFunc(app.createKeyHandler)))
 
 	log.Printf("Serviço de Autenticação (Go) rodando na porta %s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := http.ListenAndServe(":"+port, telemetry.Middleware(mux)); err != nil {
 		log.Fatal(err)
 	}
 }

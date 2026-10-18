@@ -39,9 +39,15 @@ func (a *App) validateKeyHandler(w http.ResponseWriter, r *http.Request) {
 	// Calcula o hash da chave recebida
 	keyHash := hashAPIKey(keyString)
 
-	// Verifica se o hash existe no banco de dados
+	// Verifica se o hash existe no banco de dados (com Child Span OpenTelemetry)
+	dbCtx, endSpan := StartChildSpan(r.Context(), "postgres.select_api_key", 3, map[string]string{
+		"db.system":    "postgresql",
+		"db.operation": "SELECT",
+		"db.sql.table": "api_keys",
+	})
 	var id int
-	err := a.DB.QueryRow("SELECT id FROM api_keys WHERE key_hash = $1 AND is_active = true", keyHash).Scan(&id)
+	err := a.DB.QueryRowContext(dbCtx, "SELECT id FROM api_keys WHERE key_hash = $1 AND is_active = true", keyHash).Scan(&id)
+	endSpan(err)
 	if err != nil {
 		// Se não encontrar (sql.ErrNoRows), ou qualquer outro erro, a chave é inválida
 		log.Printf("Falha na validação da chave (hash: %s...): %v", keyHash[:6], err)
@@ -51,7 +57,7 @@ func (a *App) validateKeyHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Chave válida
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Chave válida"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": "Chave válida"})
 }
 
 // createKeyHandler cria uma nova chave de API
@@ -80,12 +86,19 @@ func (a *App) createKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	newKeyHash := hashAPIKey(newKey)
 
-	// Salva o hash no banco de dados
+	// Salva o hash no banco de dados (com Child Span OpenTelemetry)
+	dbCtx, endSpan := StartChildSpan(r.Context(), "postgres.insert_api_key", 3, map[string]string{
+		"db.system":    "postgresql",
+		"db.operation": "INSERT",
+		"db.sql.table": "api_keys",
+	})
 	var newID int
-	err = a.DB.QueryRow(
+	err = a.DB.QueryRowContext(
+		dbCtx,
 		"INSERT INTO api_keys (name, key_hash) VALUES ($1, $2) RETURNING id",
 		req.Name, newKeyHash,
 	).Scan(&newID)
+	endSpan(err)
 
 	if err != nil {
 		log.Printf("Erro ao salvar a chave no banco: %v", err)
@@ -95,7 +108,7 @@ func (a *App) createKeyHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Nova chave criada com sucesso (ID: %d, Name: %s)", newID, req.Name)
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(CreateKeyResponse{
+	_ = json.NewEncoder(w).Encode(CreateKeyResponse{
 		Name:    req.Name,
 		Key:     newKey, // Retorna a chave em texto plano pela última vez
 		Message: "Guarde esta chave com segurança! Você não poderá vê-la novamente.",
